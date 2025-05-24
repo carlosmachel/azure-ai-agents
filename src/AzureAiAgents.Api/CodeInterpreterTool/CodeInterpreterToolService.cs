@@ -8,7 +8,8 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 {
     public async Task<string> CreateAgentWithCodeInterpreterTool(Stream fileStream, string fileName)
     {
-        var projectClient = new AIProjectClient(options.Value.ConnectionString, new DefaultAzureCredential());
+        AIProjectClient projectClient = new AIProjectClient(options.Value.ConnectionString, new DefaultAzureCredential());
+         
         var agentClient = projectClient.GetAgentsClient();
         List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
 

@@ -1,10 +1,11 @@
+using AzureAiAgents.Api;
 using AzureAiAgents.Api.CodeInterpreterTool;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
-//builder.Services.Configure()
+builder.Services.Configure<AzureAiAgentSettings>(builder.Configuration.GetSection("AzureAiAgentSettings"));
 
 builder.Services.AddScoped<CodeInterpreterToolService>();
 
@@ -19,3 +20,5 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.RegisterCodeInterpreterTool();
+
+app.Run();
