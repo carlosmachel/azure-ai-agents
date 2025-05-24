@@ -7,11 +7,10 @@ namespace AzureAiAgents.Api.CodeInterpreterTool;
 
 public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 {
+    
     public async Task<string> CreateAgentWithCodeInterpreterTool(Stream fileStream, string fileName)
     {
-        AIProjectClient projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
-         
-        var agentClient = projectClient.GetPersistentAgentsClient();
+        var agentClient = new PersistentAgentsClient(options.Value.Uri, new DefaultAzureCredential());
         List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
 
         PersistentAgentFileInfo uploadAgentFile = await agentClient.Files.UploadFileAsync(fileStream, PersistentAgentFilePurpose.Agents, fileName);
@@ -32,7 +31,7 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 
     public async Task<string> CreateThreadAsync()
     {
-        var projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
+        var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
         var agentClient = projectClient.GetPersistentAgentsClient();
         
         PersistentAgentThread thread = await agentClient.Threads.CreateThreadAsync();
@@ -41,7 +40,7 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
     
     public async Task<IEnumerable<string>> RunCodeInterpreterTool(string assistantId, string threadId, string userInput)
     {
-        var projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
+        var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
         var agentClient = projectClient.GetPersistentAgentsClient();
         
         PersistentAgent agent = await agentClient.Administration.GetAgentAsync(assistantId);
