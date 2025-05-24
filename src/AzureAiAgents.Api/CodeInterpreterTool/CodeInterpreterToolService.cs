@@ -1,3 +1,4 @@
+using Azure.AI.Agents.Persistent;
 using Azure.AI.Projects;
 using Azure.Identity;
 using Microsoft.Extensions.Options;
@@ -8,14 +9,14 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 {
     public async Task<string> CreateAgentWithCodeInterpreterTool(Stream fileStream, string fileName)
     {
-        AIProjectClient projectClient = new AIProjectClient(options.Value.ConnectionString, new DefaultAzureCredential());
+        AIProjectClient projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
          
-        var agentClient = projectClient.GetAgentsClient();
+        var agentClient = projectClient.GetPersistentAgentsClient();
         List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
 
-        AgentFile uploadAgentFile = await agentClient.UploadFileAsync(fileStream, purpose: AgentFilePurpose.Agents, fileName);
+        PersistentAgentFileInfo uploadAgentFile = await agentClient.Files.UploadFileAsync(fileStream, PersistentAgentFilePurpose.Agents, fileName);
         
-        Agent agent = await agentClient.CreateAgentAsync(options.Value.Model,
+        PersistentAgent agent = await agentClient.Administration.CreateAgentAsync(options.Value.Model,
             name: "basic-code-interpreter-agent",
             instructions: "You are a helpful agent that can help fetch data from files you know about.",
             tools: tools,
@@ -31,38 +32,38 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 
     public async Task<string> CreateThreadAsync()
     {
-        var projectClient = new AIProjectClient(options.Value.ConnectionString, new DefaultAzureCredential());
-        var agentClient = projectClient.GetAgentsClient();
+        var projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
+        var agentClient = projectClient.GetPersistentAgentsClient();
         
-        AgentThread thread = await agentClient.CreateThreadAsync();
+        PersistentAgentThread thread = await agentClient.Threads.CreateThreadAsync();
         return thread.Id;
     }
     
     public async Task<IEnumerable<string>> RunCodeInterpreterTool(string assistantId, string threadId, string userInput)
     {
-        var projectClient = new AIProjectClient(options.Value.ConnectionString, new DefaultAzureCredential());
-        var agentClient = projectClient.GetAgentsClient();
+        var projectClient = new AIProjectClient(new Uri(options.Value.ConnectionString), new DefaultAzureCredential());
+        var agentClient = projectClient.GetPersistentAgentsClient();
         
-        Agent agent = await agentClient.GetAgentAsync(assistantId);
-        AgentThread thread = await agentClient.GetThreadAsync(threadId);
+        PersistentAgent agent = await agentClient.Administration.GetAgentAsync(assistantId);
+        PersistentAgentThread thread = await agentClient.Threads.GetThreadAsync(threadId);
         
-        await agentClient.CreateMessageAsync( threadId, role: MessageRole.User, content: userInput);
+        await agentClient.Messages.CreateMessageAsync( threadId, role: MessageRole.User, content: userInput);
         
-        ThreadRun run = await agentClient.CreateRunAsync(thread, agent);
+        ThreadRun run = await agentClient.Runs.CreateRunAsync(thread, agent);
 
         do
         {
             await Task.Delay(TimeSpan.FromMilliseconds(500));
-            run = await agentClient.GetRunAsync(thread.Id, run.Id);
+            run = await agentClient.Runs.GetRunAsync(thread.Id, run.Id);
         }
         while (run.Status == RunStatus.Queued
                || run.Status == RunStatus.InProgress
                || run.Status == RunStatus.RequiresAction);
         
-        var messagesResponse = await agentClient.GetMessagesAsync(thread.Id, order: ListSortOrder.Descending);
+        var messagesResponse = agentClient.Messages.GetMessagesAsync(thread.Id, order: ListSortOrder.Descending);
         var result = new List<string>();
 
-        foreach (var threadMessage in messagesResponse.Value.Data)
+        await foreach (var threadMessage in messagesResponse) 
         {
             if(threadMessage.ContentItems.FirstOrDefault() is MessageTextContent messageTextContent) 
                 result.Add(messageTextContent.Text);
