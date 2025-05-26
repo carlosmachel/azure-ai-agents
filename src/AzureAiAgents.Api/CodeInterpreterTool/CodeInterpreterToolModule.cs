@@ -10,7 +10,7 @@ public static class CodeInterpreterToolModule
         // "You are a helpful agent that can help fetch data from files you know about.",
         app.MapPost("/code-interpreter/create-agent/with-file", async (
                 [FromServices] CodeInterpreterToolService service,
-                IFormFile file,
+                [FromForm] IFormFile file,
                 [FromQuery] string name,
                 [FromQuery] string instructions) =>
         {
@@ -67,7 +67,7 @@ public static class CodeInterpreterToolModule
                 [FromQuery] string userInput) =>
             {
                 var result = await service.RunWithAttachementsAsync(agentId, threadId, userInput);
-                return Results.Ok(result);
+                return Results.File(result, contentType: "image/png", "chart.png");
             })
             .WithTags("CodeInterpreterTool");
        

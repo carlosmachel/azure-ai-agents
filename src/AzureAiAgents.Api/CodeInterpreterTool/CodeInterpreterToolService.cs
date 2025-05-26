@@ -131,6 +131,7 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
             BinaryData content = await agentClient.Files.GetFileContentAsync(threadMessage.Attachments[0].FileId);
             MemoryStream memoryStream = new();
             await content.ToStream().CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
             return memoryStream;
         }
 
