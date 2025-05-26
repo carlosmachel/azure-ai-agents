@@ -6,11 +6,15 @@ public static class CodeInterpreterToolModule
 {
     public static void RegisterCodeInterpreterTool(this IEndpointRouteBuilder app)
     {
+        //"basic-code-interpreter-agent"
+        // "You are a helpful agent that can help fetch data from files you know about.",
         app.MapPost("/code-interpreter/create-agent/with-file", async (
                 [FromServices] CodeInterpreterToolService service,
-                IFormFile file) =>
+                IFormFile file,
+                [FromQuery] string name,
+                [FromQuery] string instructions) =>
         {
-            var agentId = await service.CreateAgentAsync(file.OpenReadStream(), file.FileName);
+            var agentId = await service.CreateAgentAsync(file.OpenReadStream(), file.FileName, name, instructions);
             return Results.Ok(agentId);
         })
         .WithTags("CodeInterpreterTool")
@@ -56,7 +60,16 @@ public static class CodeInterpreterToolModule
             })
             .WithTags("CodeInterpreterTool");
         
-        
+        app.MapGet("/code-interpreter/run/chart", async (
+                [FromServices] CodeInterpreterToolService service,
+                [FromQuery] string agentId,
+                [FromQuery] string threadId,
+                [FromQuery] string userInput) =>
+            {
+                var result = await service.RunWithAttachementsAsync(agentId, threadId, userInput);
+                return Results.Ok(result);
+            })
+            .WithTags("CodeInterpreterTool");
        
     }
 }

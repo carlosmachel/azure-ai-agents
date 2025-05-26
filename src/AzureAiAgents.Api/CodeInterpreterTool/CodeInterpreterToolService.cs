@@ -8,7 +8,7 @@ namespace AzureAiAgents.Api.CodeInterpreterTool;
 public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 {
     
-    public async Task<string> CreateAgentAsync(Stream fileStream, string fileName)
+    public async Task<string> CreateAgentAsync(Stream fileStream, string fileName, string agentName, string instructions)
     {
         var agentClient = new PersistentAgentsClient(options.Value.Uri, new DefaultAzureCredential());
         List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
@@ -16,8 +16,8 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
         PersistentAgentFileInfo uploadAgentFile = await agentClient.Files.UploadFileAsync(fileStream, PersistentAgentFilePurpose.Agents, fileName);
         
         PersistentAgent agent = await agentClient.Administration.CreateAgentAsync(options.Value.Model,
-            name: "basic-code-interpreter-agent",
-            instructions: "You are a helpful agent that can help fetch data from files you know about.",
+            name: agentName,
+            instructions: instructions,
             tools: tools,
             toolResources: new ToolResources
             {
@@ -98,5 +98,42 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
         }
 
         return result;
+    }
+    
+    public async Task<Stream?> RunWithAttachementsAsync(string assistantId, string threadId, string userInput)
+    {
+        var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
+        var agentClient = projectClient.GetPersistentAgentsClient();
+        
+        PersistentAgent agent = await agentClient.Administration.GetAgentAsync(assistantId);
+        PersistentAgentThread thread = await agentClient.Threads.GetThreadAsync(threadId);
+        
+        await agentClient.Messages.CreateMessageAsync( threadId, role: MessageRole.User, content: userInput);
+        
+        ThreadRun run = await agentClient.Runs.CreateRunAsync(thread, agent);
+
+        do
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            run = await agentClient.Runs.GetRunAsync(thread.Id, run.Id);
+        }
+        while (run.Status == RunStatus.Queued
+               || run.Status == RunStatus.InProgress
+               || run.Status == RunStatus.RequiresAction);
+        
+        var messagesResponse = agentClient.Messages.GetMessagesAsync(thread.Id, order: ListSortOrder.Descending);
+        await foreach (var threadMessage in messagesResponse)
+        {
+            if (threadMessage.Attachments.Count <= 0) continue;
+            PersistentAgentFileInfo fileInfo = await agentClient.Files.GetFileAsync(threadMessage.Attachments[0].FileId);
+            if (fileInfo.Purpose != PersistentAgentFilePurpose.AgentsOutput) continue;
+            
+            BinaryData content = await agentClient.Files.GetFileContentAsync(threadMessage.Attachments[0].FileId);
+            MemoryStream memoryStream = new();
+            await content.ToStream().CopyToAsync(memoryStream);
+            return memoryStream;
+        }
+
+        return null;
     }
 }
