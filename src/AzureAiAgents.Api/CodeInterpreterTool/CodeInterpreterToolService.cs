@@ -8,7 +8,7 @@ namespace AzureAiAgents.Api.CodeInterpreterTool;
 public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
 {
     
-    public async Task<string> CreateAgentWithCodeInterpreterTool(Stream fileStream, string fileName)
+    public async Task<string> CreateAgentAsync(Stream fileStream, string fileName)
     {
         var agentClient = new PersistentAgentsClient(options.Value.Uri, new DefaultAzureCredential());
         List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
@@ -19,7 +19,7 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
             name: "basic-code-interpreter-agent",
             instructions: "You are a helpful agent that can help fetch data from files you know about.",
             tools: tools,
-            toolResources: new ToolResources()
+            toolResources: new ToolResources
             {
                 CodeInterpreter = new CodeInterpreterToolResource
                 {
@@ -28,17 +28,46 @@ public class CodeInterpreterToolService(IOptions<AzureAiAgentSettings> options)
             });
         return agent.Id;
     }
+    
+    public async Task<string> CreateAgentAsync(string agentName, string instructions)
+    {
+        var agentClient = new PersistentAgentsClient(options.Value.Uri, new DefaultAzureCredential());
+        List<ToolDefinition> tools = [ new CodeInterpreterToolDefinition() ];
+        PersistentAgent agent = await agentClient.Administration.CreateAgentAsync(options.Value.Model,
+            name: agentName,
+            instructions: instructions,
+            tools: tools);
+        return agent.Id;
+    }
 
     public async Task<string> CreateThreadAsync()
     {
         var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
         var agentClient = projectClient.GetPersistentAgentsClient();
-        
+
         PersistentAgentThread thread = await agentClient.Threads.CreateThreadAsync();
         return thread.Id;
     }
+
+    public async Task<string> CreateThreadAsync(Stream fileStream, string fileName)
+    {
+        var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
+        var agentClient = projectClient.GetPersistentAgentsClient();
+
+        PersistentAgentFileInfo uploadAgentFile = await agentClient.Files.UploadFileAsync(fileStream, PersistentAgentFilePurpose.Agents, fileName);
+        var tools = new ToolResources
+        {
+            CodeInterpreter = new CodeInterpreterToolResource
+            {
+                FileIds = {  uploadAgentFile.Id }
+            }
+        };
+        
+        PersistentAgentThread thread = await agentClient.Threads.CreateThreadAsync(toolResources: tools);
+        return thread.Id;
+    }
     
-    public async Task<IEnumerable<string>> RunCodeInterpreterTool(string assistantId, string threadId, string userInput)
+    public async Task<IEnumerable<string>> RunAsync(string assistantId, string threadId, string userInput)
     {
         var projectClient = new AIProjectClient(new Uri(options.Value.Uri), new DefaultAzureCredential());
         var agentClient = projectClient.GetPersistentAgentsClient();
